@@ -1,0 +1,12 @@
+{
+  "name": "telegram-contact-logger",
+  "version": "1.0.0",
+  "description": "Telegram bot for logging user info and contact shared via start parameter",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "node-telegram-bot-api": "^0.65.1"
+  }
+}
